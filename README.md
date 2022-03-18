@@ -5,8 +5,11 @@ Chiefly useful for reproducibly running editor scenarios for standalone investig
 
 ## Usage
 
-Typically, the values passed to the API/server are extracted from a tsserver log.
-In VS Code, run command `TypeScript: Open TS Server Log`.
+See `samples/index.js` for an example of how to use the harness.
+It can be run with `npm ci && node index`.
+
+The easiest way to figure out what the requests should contain is to look at the server log from a real editor session.
+In VS Code, you can access the server log by running the command `TypeScript: Open TS Server Log`.
 
 ## Deployment
 

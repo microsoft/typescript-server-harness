@@ -1,0 +1,3 @@
+[submodule "sample/reproProject"]
+	path = sample/reproProject
+	url = https://github.com/microsoft/typescript-analyze-trace

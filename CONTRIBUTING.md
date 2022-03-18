@@ -15,3 +15,8 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 ## Building
 
 To build, run `npm ci` to download the required packages and `npm run build` to compile.
+
+## Submodule
+
+It should never be necessary to update the submodule - it was just a convenient way to incorporate a sample project without duplicating all the files.
+(In fact, updating the submodule would like necessitate updates to the demo script.)

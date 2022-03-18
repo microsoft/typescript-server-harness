@@ -1,0 +1,13 @@
+{
+  "name": "typescript-server-driver",
+  "author": "Microsoft Corp.",
+  "version": "1.0.0",
+  "description": "An example of how to consume @typescript/server-harness",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@typescript/server-harness": "file:..",
+    "pprof-it": "^0.1.0",
+    "typescript": "^4.6.2"
+  }
+}
