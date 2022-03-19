@@ -17,7 +17,7 @@ export interface Server {
 /**
  * Forks a new server process.  By default, the server will not have ATA or produce diagnostic events.
  */
-export function launchServer(tsserverPath: string, args?: string[], execArgv?: string[]): Server {
+export function launchServer(tsserverPath: string, args?: string[], execArgv?: string[], env?: NodeJS.ProcessEnv): Server {
     const eventListeners: EventListener[] = [];
     const exitListeners: ExitListener[] = [];
 
@@ -26,6 +26,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
         args ?? [ "--disableAutomaticTypingAcquisition" ],
         {
             execArgv: execArgv ?? process.execArgv?.map(arg => bumpDebugPort(arg)),
+            env,
             stdio: ["pipe", "pipe", "ignore", "ipc"]
         });
 

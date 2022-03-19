@@ -29,8 +29,8 @@ async function main() {
             "--traceDirectory", path.join(__dirname, "traces"),
 
             // Produce a server log
-            "--logVerbosity", "verbose",
-            "--logFile", path.join(__dirname, "logs", "tsserver.PID.log"),
+            // "--logVerbosity", "verbose",
+            // "--logFile", path.join(__dirname, "logs", "tsserver.PID.log"),
         ],
         // Arguments to node
         [
@@ -38,14 +38,19 @@ async function main() {
             // "--inspect-brk=9230",
 
             // Generate time and heap profiles (see https://github.com/jakebailey/pprof-it for config options)
-            // `--require=${path.join(__dirname, "node_modules", "pprof-it", "dist", "index.js")}`,
+            // Disable logging if profiling - their cleanup handlers conflict
+            `--require=${path.join(__dirname, "node_modules", "pprof-it", "dist", "index.js")}`,
 
             // Increasing the heap size is just generally a good idea
             "--max-old-space-size=4096",
 
             // This will enable some GC output in the server log
             "--expose-gc"
-        ]);
+        ],
+        // Environment variables for server process (mostly useful for pprof-it)
+        {
+            "PPROF_OUT": path.join(__dirname, "profiles")
+        });
 
     server.on("exit", code => console.log(code ? `Exited with code ${code}` : `Terminated`));
     server.on("event", e => console.log(e));
