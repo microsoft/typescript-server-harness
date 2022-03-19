@@ -29,8 +29,8 @@ async function main() {
             "--traceDirectory", path.join(__dirname, "traces"),
 
             // Produce a server log
-            // "--logVerbosity", "verbose",
-            // "--logFile", path.join(__dirname, "logs", "tsserver.PID.log"),
+            "--logVerbosity", "verbose",
+            "--logFile", path.join(__dirname, "logs", "tsserver.PID.log"),
         ],
         // Arguments to node
         [
@@ -39,7 +39,8 @@ async function main() {
 
             // Generate time and heap profiles (see https://github.com/jakebailey/pprof-it for config options)
             // Disable logging if profiling - their cleanup handlers conflict
-            `--require=${path.join(__dirname, "node_modules", "pprof-it", "dist", "index.js")}`,
+            // Disable tracing if profiling - it causes unrealistic slowdowns
+            // `--require=${path.join(__dirname, "node_modules", "pprof-it", "dist", "index.js")}`,
 
             // Increasing the heap size is just generally a good idea
             "--max-old-space-size=4096",
