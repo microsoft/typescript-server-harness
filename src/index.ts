@@ -75,24 +75,34 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
         serverProc.on('message', handleMessage);
     }
     else {
-        let unconsumedText = "";
-        let currentLength = -1;
+        let unconsumedChunks: Buffer[] = [];
+        let unconsumedByteLength = 0;
+        let headerByteLength = -1;
+        let currentByteLength = -1;
         serverProc.stdout!.on('data', buffer => {
-            unconsumedText += buffer.toString("utf8");
+            unconsumedChunks.push(buffer);
+            unconsumedByteLength += buffer.byteLength;
 
             while (true) {
-                if (currentLength < 0) {
-                    const headerMatch = unconsumedText.match(/Content-Length: (\d+)/);
+                if (headerByteLength < 0) {
+                    // This could be done directly in the buffer, but strings are much simpler
+                    const text = Buffer.concat(unconsumedChunks, unconsumedByteLength).toString("utf8");
+                    const headerMatch = text.match(/Content-Length: (\d+)/); // Receiving a chunk shorter than this is very unlikely
                     if (!headerMatch) break;
-                    currentLength = +headerMatch[1];
-                    unconsumedText = unconsumedText.substring(unconsumedText.indexOf("{", headerMatch.index! + headerMatch.length));
+                    headerByteLength = text.indexOf("{", headerMatch.index! + headerMatch[0].length); // All single-byte characters
+                    const bodyByteLength = +headerMatch[1];
+                    currentByteLength = headerByteLength + bodyByteLength + 1; // Plus one for the uncounted trailing newline
                 }
 
-                if (unconsumedText.length < currentLength) return;
+                if (unconsumedByteLength < currentByteLength) return;
 
-                const obj = JSON.parse(unconsumedText.substring(0, currentLength));
-                unconsumedText = unconsumedText.substring(currentLength);
-                currentLength = -1;
+                const combined = Buffer.concat(unconsumedChunks, unconsumedByteLength);
+                const jsonText = combined.toString("utf8", headerByteLength, currentByteLength);
+                const obj = JSON.parse(jsonText);
+                unconsumedByteLength -= currentByteLength;
+                unconsumedChunks = unconsumedByteLength > 0 ? [ combined.subarray(currentByteLength) ] : [];
+                headerByteLength = -1;
+                currentByteLength = -1;
 
                 handleMessage(obj);
             }
