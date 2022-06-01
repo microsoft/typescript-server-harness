@@ -152,5 +152,14 @@ async function message(serverProc: cp.ChildProcess, useNodeIpc: boolean, getResp
     } else {
         serverProc.stdin!.write(JSON.stringify(request) + "\n");
     }
+
+    // Several commands, such as `configure`, are flagged as not requiring a response.  In practice, however,
+    // they do return trivial responses.  The only command that definitely won't return a response is `exit`.
+    // If it eventually becomes necessary to handle to handle another non-responding command, we'll probably
+    // need to make message take an optional parameter to that effect.
+    if (request.command === "exit") {
+        return Promise.resolve(undefined);
+    }
+
     return await getResponse(seq);
 }
