@@ -1,4 +1,5 @@
 import cp = require("child_process");
+import os = require("os");
 
 type EventListener = (obj: any) => void;
 type ExitListener = (code: number | null) => void;
@@ -91,7 +92,7 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
                     if (!headerMatch) break;
                     headerByteLength = text.indexOf("{", headerMatch.index! + headerMatch[0].length); // All single-byte characters
                     const bodyByteLength = +headerMatch[1];
-                    currentByteLength = headerByteLength + bodyByteLength + 1; // Plus one for the uncounted trailing newline
+                    currentByteLength = headerByteLength + bodyByteLength + (os.EOL.length - 1); // tsserver assumes the final newline has length one on every OS
                 }
 
                 if (unconsumedByteLength < currentByteLength) return;
