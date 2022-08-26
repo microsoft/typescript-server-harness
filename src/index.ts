@@ -147,6 +147,11 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
 }
 
 async function message(serverProc: cp.ChildProcess, useNodeIpc: boolean, getResponse: (seq: number) => Promise<any>, request: any) {
+    // TODO: It would be more robust to handle write/send failures
+    if (!serverProc.connected || serverProc.killed || serverProc.exitCode !== null || serverProc.signalCode !== null) {
+        throw new Error("Server has exited");
+    }
+
     const seq: number = request.seq;
     if (useNodeIpc) {
         serverProc.send(request);
