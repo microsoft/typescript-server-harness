@@ -7,7 +7,7 @@
   "license": "MIT",
   "dependencies": {
     "@typescript/server-harness": "file:..",
-    "pprof-it": "^0.1.0",
-    "typescript": "^4.6.2"
+    "pprof-it": "^1.0.0",
+    "typescript": "^4.8.2"
   }
 }
