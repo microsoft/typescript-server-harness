@@ -7,6 +7,13 @@ type ExitListener = (code: number | null) => void;
 export interface Server {
     /** Returns the response (or event) with the matching `request_seq`. */
     message(request: any): Promise<any>;
+    /**
+     * Sends an exit message to the server and forcibly kills it if it hasn't exited after `timeoutMs`.
+     * Throws if the request fails (e.g. if the server has already exited).
+     * Throws if the server doesn't exit before `timeoutMs` and it cannot be killed.
+     * Returns true if the server exited before `timeoutMs` and false if it was killed.
+     */
+    exitOrKill(timoutMs: number): Promise<boolean>;
     /** Kills the server, regardless of its current state. */
     kill(): void;
     /** Fires when an event is received from the server. */
@@ -24,7 +31,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
 
     const serverProc = cp.fork(
         tsserverPath,
-        args ?? [ "--disableAutomaticTypingAcquisition" ],
+        args ?? ["--disableAutomaticTypingAcquisition"],
         {
             execArgv: execArgv ?? process.execArgv?.map(arg => bumpDebugPort(arg)),
             env,
@@ -56,6 +63,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
 
     return {
         message: request => message(serverProc, useNodeIpc, getNext, request),
+        exitOrKill: timeoutMs => exitOrKill(serverProc, useNodeIpc, timeoutMs),
         kill: () => serverProc.kill(),
         on,
     };
@@ -101,7 +109,7 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
                 const jsonText = combined.toString("utf8", headerByteLength, currentByteLength);
                 const obj = JSON.parse(jsonText);
                 unconsumedByteLength -= currentByteLength;
-                unconsumedChunks = unconsumedByteLength > 0 ? [ combined.subarray(currentByteLength) ] : [];
+                unconsumedChunks = unconsumedByteLength > 0 ? [combined.subarray(currentByteLength)] : [];
                 headerByteLength = -1;
                 currentByteLength = -1;
 
@@ -168,4 +176,30 @@ async function message(serverProc: cp.ChildProcess, useNodeIpc: boolean, getResp
     }
 
     return await getResponse(seq);
+}
+
+async function exitOrKill(serverProc: cp.ChildProcess, useNodeIpc: boolean, timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve, reject) => {
+        let timedOut = false;
+
+        serverProc.on("exit", _code => {
+            if (!timedOut) {
+                clearTimeout(timeout);
+                resolve(true);
+            }
+        });
+
+        const timeout = setTimeout(async () => {
+            timedOut = true;
+            if (serverProc.kill()) {
+                resolve(false);
+            }
+            else {
+                reject(new Error("Failed to kill server"));
+            }
+        }, timeoutMs);
+
+        // No response, so nothing to await
+        message(serverProc, useNodeIpc, /*getResponse*/ undefined as never, { "command": "exit" }).catch(err => reject(err));;
+    });
 }
