@@ -64,7 +64,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
     return {
         message: request => message(serverProc, useNodeIpc, getNext, request),
         exitOrKill: timeoutMs => exitOrKill(serverProc, useNodeIpc, timeoutMs),
-        kill: () => serverProc.kill(),
+        kill: () => serverProc.kill("SIGKILL"),
         on,
     };
 }
