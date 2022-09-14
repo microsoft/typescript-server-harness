@@ -106,7 +106,7 @@ async function main() {
         "command": "geterr",
         "arguments": {
             "delay": 0,
-            "files": [ openFilePath ],
+            "files": [openFilePath],
         }
     });
     end = performance.now();
@@ -125,7 +125,7 @@ async function main() {
             "changedFiles": [
                 {
                     "fileName": openFilePath,
-                    "textChanges": [{"newText":"1","start":{"line":4,"offset":24},"end":{"line":4,"offset":24}}],
+                    "textChanges": [{ "newText": "1", "start": { "line": 4, "offset": 24 }, "end": { "line": 4, "offset": 24 } }],
                 }
             ],
         }
@@ -138,7 +138,7 @@ async function main() {
         "command": "geterr",
         "arguments": {
             "delay": 0,
-            "files": [ openFilePath ],
+            "files": [openFilePath],
         }
     });
     end = performance.now();
@@ -155,27 +155,43 @@ async function main() {
             "changedFiles": [
                 {
                     "fileName": openFilePath,
-                    "textChanges": [{"newText":"","start":{"line":4,"offset":24},"end":{"line":4,"offset":25}}],
+                    "textChanges": [{ "newText": "", "start": { "line": 4, "offset": 24 }, "end": { "line": 4, "offset": 25 } }],
                 }
             ],
         }
     });
 
-    // Find all references to `normalizePositions`
-    start = performance.now();
-    const references = await server.message({
-        "seq": seq++,
-        "type": "request",
-        "command": "references",
-        "arguments": {
-            "file": openFilePath,
-            "line": 7,
-            "offset": 8
-        }
-    });
-    end = performance.now();
-    console.log(`Found ${references.body.refs.length} references in ${Math.round(end - start)} ms`);
+
+
+    try {
+        // Find all references to `normalizePositions`
+        start = performance.now();
+        const references = await server.message({
+            "seq": seq++,
+            "type": "request",
+            "command": "references",
+            "arguments": {
+                "file": openFilePath,
+                "line": 7,
+                "offset": 8
+            }
+        });
+        end = performance.now();
+        console.log(`Found ${references.body.refs.length} references in ${Math.round(end - start)} ms`);
+    }
+    catch (err) {
+        console.error("Caught " + err);
+    }
 
     // Tell the server to shut down
-    await server.message({ "seq": seq++, "command": "exit" });
+    // await server.message({ "seq": seq++, "command": "exit" });
+
+    // console.log("Killing");
+    // server.kill();
+    // console.log("Waiting");
+    // const sss = performance.now();
+    // while (performance.now() - sss < 2000) { }
+
+    console.log("Exiting");
+    console.log(await server.exitOrKill(1));
 }

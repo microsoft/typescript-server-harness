@@ -2,7 +2,7 @@
   "name": "@typescript/server-harness",
   "author": "Microsoft Corp.",
   "homepage": "https://github.com/microsoft/typescript-server-harness#readme",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "description": "Communicate with a tsserver process",
   "keywords": [
