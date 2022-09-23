@@ -15,7 +15,7 @@ export interface Server {
      */
     exitOrKill(timoutMs: number): Promise<boolean>;
     /** Kills the server, regardless of its current state. */
-    kill(): void;
+    kill(): Promise<void>;
     /** Fires when an event is received from the server. */
     on(event: "event", listener: EventListener): void;
     /** Fires when the server exits. */
@@ -64,7 +64,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
     return {
         message: request => message(serverProc, useNodeIpc, getNext, request),
         exitOrKill: timeoutMs => exitOrKill(serverProc, useNodeIpc, timeoutMs),
-        kill: () => serverProc.kill("SIGKILL"),
+        kill: () => kill(serverProc),
         on,
     };
 }
@@ -182,7 +182,7 @@ async function exitOrKill(serverProc: cp.ChildProcess, useNodeIpc: boolean, time
     return new Promise<boolean>((resolve, reject) => {
         let timedOut = false;
 
-        serverProc.on("exit", _code => {
+        serverProc.once("close", () => {
             if (!timedOut) {
                 clearTimeout(timeout);
                 resolve(true);
@@ -191,15 +191,23 @@ async function exitOrKill(serverProc: cp.ChildProcess, useNodeIpc: boolean, time
 
         const timeout = setTimeout(async () => {
             timedOut = true;
-            if (serverProc.kill()) {
-                resolve(false);
-            }
-            else {
-                reject(new Error("Failed to kill server"));
-            }
+            await kill(serverProc);
+            resolve(false);
         }, timeoutMs);
 
         // No response, so nothing to await
         message(serverProc, useNodeIpc, /*getResponse*/ undefined as never, { "command": "exit" }).catch(err => reject(err));;
+    });
+}
+
+function kill(serverProc: cp.ChildProcess) {
+    return new Promise<void>((resolve, reject) => {
+        serverProc.once("close", () => {
+            resolve();
+        });
+
+        if (!serverProc.kill("SIGKILL")) {
+            reject(new Error("Failed to send kill signal to server"));
+        }
     });
 }
