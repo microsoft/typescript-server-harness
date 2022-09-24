@@ -206,6 +206,11 @@ function kill(serverProc: cp.ChildProcess) {
             resolve();
         });
 
+        // If the server has already exited, there won't be a close event
+        if (serverProc.exitCode !== null || serverProc.signalCode !== null) {
+            resolve();
+        }
+
         if (!serverProc.kill("SIGKILL")) {
             reject(new Error("Failed to send kill signal to server"));
         }
