@@ -3,6 +3,7 @@ import os = require("os");
 
 type EventListener = (obj: any) => void;
 type ExitListener = (code: number | null) => void;
+type CloseListener = (code: number | null, signal: NodeJS.Signals | null) => void;
 
 export interface Server {
     /** Returns the response (or event) with the matching `request_seq`. */
@@ -20,6 +21,8 @@ export interface Server {
     on(event: "event", listener: EventListener): void;
     /** Fires when the server exits. */
     on(event: "exit", listener: ExitListener): void;
+    /** Fires when the server closes (exits + closes IO streams). */
+    on(event: "close", listener: CloseListener): void;
 }
 
 /**
@@ -28,6 +31,7 @@ export interface Server {
 export function launchServer(tsserverPath: string, args?: string[], execArgv?: string[], env?: NodeJS.ProcessEnv): Server {
     const eventListeners: EventListener[] = [];
     const exitListeners: ExitListener[] = [];
+    const closeListeners: CloseListener[] = [];
 
     const serverProc = cp.fork(
         tsserverPath,
@@ -48,15 +52,25 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
         }
     });
 
+    serverProc.on("close", (code, signal) => {
+        for (const listener of closeListeners) {
+            listener(code, signal);
+        }
+    });
+
     function on(event: "event", listener: EventListener): void;
     function on(event: "exit", listener: ExitListener): void;
-    function on(event: "event" | "exit", listener: EventListener | ExitListener): void {
+    function on(event: "close", listener: CloseListener): void;
+    function on(event: "event" | "exit" | "close", listener: EventListener | ExitListener | CloseListener): void {
         switch (event) {
             case "event":
                 eventListeners.push(listener as EventListener);
                 break;
             case "exit":
                 exitListeners.push(listener as ExitListener);
+                break;
+            case "close":
+                closeListeners.push(listener as CloseListener);
                 break;
         }
     }
