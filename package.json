@@ -2,14 +2,13 @@
   "name": "@typescript/server-harness",
   "author": "Microsoft Corp.",
   "homepage": "https://github.com/microsoft/typescript-server-harness#readme",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "license": "MIT",
   "description": "Communicate with a tsserver process",
   "keywords": [
     "TypeScript",
     "Microsoft",
-    "trace",
-    "generateTrace"
+    "tsserver"
   ],
   "publishConfig": {
     "access": "public"

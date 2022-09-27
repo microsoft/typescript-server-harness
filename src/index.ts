@@ -2,6 +2,7 @@ import cp = require("child_process");
 import os = require("os");
 
 type EventListener = (obj: any) => void;
+type ErrorListener = (err: any) => void;
 type ExitListener = (code: number | null) => void;
 type CloseListener = (code: number | null, signal: NodeJS.Signals | null) => void;
 
@@ -19,6 +20,8 @@ export interface Server {
     kill(): Promise<void>;
     /** Fires when an event is received from the server. */
     on(event: "event", listener: EventListener): void;
+    /** Fires when an internal error occurs in the harness (not for language service errors). */
+    on(event: "communicationError", listener: ErrorListener): void;
     /** Fires when the server exits. */
     on(event: "exit", listener: ExitListener): void;
     /** Fires when the server closes (exits + closes IO streams). */
@@ -30,6 +33,7 @@ export interface Server {
  */
 export function launchServer(tsserverPath: string, args?: string[], execArgv?: string[], env?: NodeJS.ProcessEnv): Server {
     const eventListeners: EventListener[] = [];
+    const errorListeners: ErrorListener[] = [];
     const exitListeners: ExitListener[] = [];
     const closeListeners: CloseListener[] = [];
 
@@ -44,7 +48,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
 
     const useNodeIpc = !!args && !!args.filter(a => a.toLocaleLowerCase() === "--useNodeIpc".toLocaleLowerCase()).length;
 
-    const getNext = makeListeners(serverProc, useNodeIpc, eventListeners);
+    const getNext = makeListeners(serverProc, useNodeIpc, eventListeners, errorListeners);
 
     serverProc.on("exit", code => {
         for (const listener of exitListeners) {
@@ -59,12 +63,16 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
     });
 
     function on(event: "event", listener: EventListener): void;
+    function on(event: "communicationError", listener: ErrorListener): void;
     function on(event: "exit", listener: ExitListener): void;
     function on(event: "close", listener: CloseListener): void;
-    function on(event: "event" | "exit" | "close", listener: EventListener | ExitListener | CloseListener): void {
+    function on(event: "event" | "communicationError" | "exit" | "close", listener: EventListener | ErrorListener | ExitListener | CloseListener): void {
         switch (event) {
             case "event":
                 eventListeners.push(listener as EventListener);
+                break;
+            case "communicationError":
+                errorListeners.push(listener as ErrorListener);
                 break;
             case "exit":
                 exitListeners.push(listener as ExitListener);
@@ -90,12 +98,28 @@ function bumpDebugPort(arg: string): string {
         : arg;
 }
 
-function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventListeners: readonly EventListener[]): (seq: number) => Promise<any> {
+function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventListeners: readonly EventListener[], errorListeners: readonly ErrorListener[]): (seq: number) => Promise<any> {
     const waiters = new Map<number, ((obj: any) => void)>();
     const objects = new Map<number, any>();
 
+    // Once we get out of sync with the incoming stream, we can't recover.
+    // Ignore further data, rather than producing more errors.
+    let hadCommunicationError = false;
+
     if (useNodeIpc) {
-        serverProc.on('message', handleMessage);
+        serverProc.on('message', obj => {
+            if (hadCommunicationError) return;
+
+            try {
+                handleMessage(obj);
+            } catch (e) {
+                hadCommunicationError = true;
+
+                for (const listener of errorListeners) {
+                    listener(e);
+                }
+            }
+        });
     }
     else {
         let unconsumedChunks: Buffer[] = [];
@@ -103,31 +127,41 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
         let headerByteLength = -1;
         let currentByteLength = -1;
         serverProc.stdout!.on('data', buffer => {
-            unconsumedChunks.push(buffer);
-            unconsumedByteLength += buffer.byteLength;
+            if (hadCommunicationError) return;
 
-            while (true) {
-                if (headerByteLength < 0) {
-                    // This could be done directly in the buffer, but strings are much simpler
-                    const text = Buffer.concat(unconsumedChunks, unconsumedByteLength).toString("utf8");
-                    const headerMatch = text.match(/Content-Length: (\d+)/); // Receiving a chunk shorter than this is very unlikely
-                    if (!headerMatch) break;
-                    headerByteLength = text.indexOf("{", headerMatch.index! + headerMatch[0].length); // All single-byte characters
-                    const bodyByteLength = +headerMatch[1];
-                    currentByteLength = headerByteLength + bodyByteLength + (os.EOL.length - 1); // tsserver assumes the final newline has length one on every OS
+            try {
+                unconsumedChunks.push(buffer);
+                unconsumedByteLength += buffer.byteLength;
+
+                while (true) {
+                    if (headerByteLength < 0) {
+                        // This could be done directly in the buffer, but strings are much simpler
+                        const text = Buffer.concat(unconsumedChunks, unconsumedByteLength).toString("utf8");
+                        const headerMatch = text.match(/Content-Length: (\d+)/); // Receiving a chunk shorter than this is very unlikely
+                        if (!headerMatch) break;
+                        headerByteLength = text.indexOf("{", headerMatch.index! + headerMatch[0].length); // All single-byte characters
+                        const bodyByteLength = +headerMatch[1];
+                        currentByteLength = headerByteLength + bodyByteLength + (os.EOL.length - 1); // tsserver assumes the final newline has length one on every OS
+                    }
+
+                    if (unconsumedByteLength < currentByteLength) return;
+
+                    const combined = Buffer.concat(unconsumedChunks, unconsumedByteLength);
+                    const jsonText = combined.toString("utf8", headerByteLength, currentByteLength);
+                    const obj = JSON.parse(jsonText);
+                    unconsumedByteLength -= currentByteLength;
+                    unconsumedChunks = unconsumedByteLength > 0 ? [combined.subarray(currentByteLength)] : [];
+                    headerByteLength = -1;
+                    currentByteLength = -1;
+
+                    handleMessage(obj);
                 }
+            } catch (e) {
+                hadCommunicationError = true;
 
-                if (unconsumedByteLength < currentByteLength) return;
-
-                const combined = Buffer.concat(unconsumedChunks, unconsumedByteLength);
-                const jsonText = combined.toString("utf8", headerByteLength, currentByteLength);
-                const obj = JSON.parse(jsonText);
-                unconsumedByteLength -= currentByteLength;
-                unconsumedChunks = unconsumedByteLength > 0 ? [combined.subarray(currentByteLength)] : [];
-                headerByteLength = -1;
-                currentByteLength = -1;
-
-                handleMessage(obj);
+                for (const listener of errorListeners) {
+                    listener(e);
+                }
             }
         });
     }
