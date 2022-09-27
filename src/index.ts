@@ -140,6 +140,7 @@ function makeListeners(serverProc: cp.ChildProcess, useNodeIpc: boolean, eventLi
                         const headerMatch = text.match(/Content-Length: (\d+)/); // Receiving a chunk shorter than this is very unlikely
                         if (!headerMatch) break;
                         headerByteLength = text.indexOf("{", headerMatch.index! + headerMatch[0].length); // All single-byte characters
+                        if (headerByteLength < 0) return; // Don't have the body yet
                         const bodyByteLength = +headerMatch[1];
                         currentByteLength = headerByteLength + bodyByteLength + (os.EOL.length - 1); // tsserver assumes the final newline has length one on every OS
                     }
