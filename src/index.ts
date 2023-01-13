@@ -26,6 +26,8 @@ export interface Server {
     on(event: "exit", listener: ExitListener): void;
     /** Fires when the server closes (exits + closes IO streams). */
     on(event: "close", listener: CloseListener): void;
+    /** The PID of the subprocess. */
+    pid?: number;
 }
 
 /**
@@ -88,6 +90,7 @@ export function launchServer(tsserverPath: string, args?: string[], execArgv?: s
         exitOrKill: timeoutMs => exitOrKill(serverProc, useNodeIpc, timeoutMs),
         kill: () => kill(serverProc),
         on,
+        pid: serverProc.pid,
     };
 }
 
